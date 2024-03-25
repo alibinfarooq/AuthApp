@@ -1,0 +1,49 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Dialer Cloud Formation Template with nested stacks
+
+Resources:
+
+  Cognito:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: Cognito/template.yaml
+
+      
+  Lambda:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: Lambda/template.yaml
+      Parameters: 
+          UserPoolID: !GetAtt Cognito.Outputs.UserPoolId
+          ClientID: !GetAtt Cognito.Outputs.ClientId
+
+  
+  Api:
+    Type: AWS::Serverless::Application
+    Properties:
+      Location: Api/template.yaml
+      Parameters: 
+          AuthFunctionUri: !GetAtt Lambda.Outputs.AuthFunctionUri
+          AuthFunctionArn: !GetAtt Lambda.Outputs.AuthFunction
+          HelloFunctionUri: !GetAtt Lambda.Outputs.HelloFunctionUri
+          HelloFunctionARN: !GetAtt Lambda.Outputs.HelloFunctionARN
+          UserPoolARN: !GetAtt Cognito.Outputs.UserPoolArn
+          
+  
+
+        
+
+        
+      
+
+      
+
+      
+    
+
+        
+    
+
+        
