@@ -1,0 +1,193 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description:  > 
+  AuthApp App CloudFormation API Template(Nested)
+
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    
+Parameters:
+    AuthFunctionUri:
+      Type: String
+    AuthFunctionArn:
+      Type: String
+    UserPoolARN:
+      Type: String
+    HelloFunctionUri:
+      Type: String
+    HelloFunctionARN:
+      Type: String
+
+
+Resources:
+
+  AuthorizersCognitoUserPools:
+      Type: AWS::ApiGateway::Authorizer
+      Properties:
+        Name: CognitoAuthorizer
+        Type: COGNITO_USER_POOLS
+        RestApiId: !Ref AuthApp
+        IdentitySource: method.request.header.authorizationToken
+        ProviderARNs: 
+          - !Ref UserPoolARN
+
+  AuthApp:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Description: "AuthApp Main Api" 
+      Name: AuthApp
+      
+  AuthResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt AuthApp.RootResourceId
+      PathPart: 'Auth'
+      RestApiId: !Ref AuthApp
+      
+  HelloResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      ParentId: !GetAtt AuthApp.RootResourceId
+      PathPart: 'Hello'
+      RestApiId: !Ref AuthApp
+  
+      
+  OAuthPOSTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: NONE
+      HttpMethod: POST
+      Integration:
+        Credentials: !GetAtt AuthAppApiGatewaytoAuthLambdaIamRole.Arn
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - ResponseTemplates: {"application/json": "{ \"body-json\": $input.json('$')}"}
+            StatusCode: 200
+        PassthroughBehavior: WHEN_NO_TEMPLATES
+        TimeoutInMillis: 29000
+        Type: AWS
+        Uri: !Ref AuthFunctionUri
+      MethodResponses: 
+        - ResponseModels: 
+            application/json : 'Empty'
+          StatusCode: 200  
+      ResourceId: !GetAtt AuthResource.ResourceId
+      RestApiId: !Ref AuthApp
+      
+  HelloPOSTMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      ApiKeyRequired: false
+      AuthorizationType: COGNITO_USER_POOLS
+      AuthorizerId: !Ref AuthorizersCognitoUserPools
+      HttpMethod: POST
+      RequestValidatorId: !Ref AuthAppRequestValidator
+      Integration:
+        Credentials: !GetAtt ApiGatewayToHelloFunctionRole.Arn
+        IntegrationHttpMethod: POST
+        IntegrationResponses:
+          - ResponseTemplates: {"application/json": "{ \"body-json\": $input.json('$')}"}
+            StatusCode: 200
+        PassthroughBehavior: WHEN_NO_TEMPLATES
+        TimeoutInMillis: 29000
+        Type: AWS
+        Uri: !Ref HelloFunctionUri
+      MethodResponses: 
+        - ResponseModels: 
+            application/json : 'Empty'
+          StatusCode: 200  
+      ResourceId: !GetAtt HelloResource.ResourceId
+      RestApiId: !Ref AuthApp
+              
+  AuthAppRequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      Name: AuthAppRequestValidator
+      RestApiId: !Ref AuthApp
+      ValidateRequestBody: false
+      ValidateRequestParameters: true
+              
+  AuthAppApiGatewayDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - OAuthPOSTMethod
+      - HelloPOSTMethod
+    Properties:
+      Description: AuthApp API Deployment
+      RestApiId: !Ref AuthApp
+        
+  ApiGatewayStage:
+    Type: AWS::ApiGateway::Stage
+    DependsOn:
+      - OAuthPOSTMethod
+      - HelloPOSTMethod
+    Properties:
+      DeploymentId: !Ref AuthAppApiGatewayDeployment
+      Description: AuthApp API Stage
+      RestApiId: !Ref AuthApp
+      StageName: dev
+      
+  AuthAppApiGatewaytoAuthLambdaIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: 'Allow'
+            Principal:
+              Service:
+                - 'apigateway.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      
+  AuthAppApiGatewaytoAuthLambdaPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "AuthAppApiGatewaytoAuthLambdaPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        -
+          Effect: 'Allow'
+          Action: 'lambda:*'
+          Resource: !Ref AuthFunctionArn
+      Roles: 
+      - 
+        !Ref AuthAppApiGatewaytoAuthLambdaIamRole
+  ApiGatewayToHelloFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: ''
+            Effect: 'Allow'
+            Principal:
+              Service:
+                - 'apigateway.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      Path: '/'
+      
+  ApiGatewayToHelloFunctionRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: "AuthAppApiGatewaytoAuthLambdaPolicy"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        -
+          Effect: 'Allow'
+          Action: 'lambda:*'
+          Resource: !Ref HelloFunctionARN
+      Roles: 
+      - 
+        !Ref ApiGatewayToHelloFunctionRole
+        
+  

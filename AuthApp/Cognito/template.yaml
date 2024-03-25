@@ -1,0 +1,98 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Parameters:
+  ExampleCallbackURL:
+    Type: String
+    Default: "https://example.com/callback"
+    
+Parameters:
+  
+  Email:
+    Type: String
+    Default: "alibinfarooq9@gmail.com"
+  UserName:
+    Type: String
+    Default: "AuthAppUser"
+  ExampleCallbackURL:
+    Type: String
+    Default: "https://example.com/callback"
+
+Resources:
+  AuthAppUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: "AuthAppPool"
+      UsernameAttributes:
+        - "email"
+        - "phone_number"
+      UserAttributeUpdateSettings:
+         AttributesRequireVerificationBeforeUpdate: 
+            - "email"
+      AutoVerifiedAttributes:
+        - "email"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: "verified_email"
+            Priority: 1
+          - Name: "verified_phone_number"
+            Priority: 2
+
+  AuthAppUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ExplicitAuthFlows:
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+      PreventUserExistenceErrors: "ENABLED"
+      AllowedOAuthFlows: 
+        - implicit
+      AllowedOAuthFlowsUserPoolClient: True
+      AllowedOAuthScopes:
+        - openid
+        - email
+        - profile
+      CallbackURLs:
+        - !Ref ExampleCallbackURL
+      ClientName: AuthApp-user-pool-client
+      SupportedIdentityProviders:
+        - COGNITO
+      UserPoolId: !Ref AuthAppUserPool
+
+  AuthAppCognitoDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub user-pool-domain-${AWS::AccountId}
+      UserPoolId: !Ref AuthAppUserPool
+      
+  AuthAppCognitoAuthorizerUserPoolUser1:
+    Type: AWS::Cognito::UserPoolUser
+    Properties: 
+      UserAttributes: 
+        - Name: email
+          Value: !Ref Email
+      Username: !Ref Email
+      UserPoolId: !Ref AuthAppUserPool
+
+
+  
+
+
+Outputs:
+  UserPoolArn:
+    Value: !GetAtt AuthAppUserPool.Arn
+    Description: ARN of the user pool
+  UserPoolId:
+    Value: !Ref AuthAppUserPool
+    Description: ID of the user pool
+  ClientId:
+    Value: !GetAtt AuthAppUserPoolClient.ClientId
+    Description: Client ID of the app client
